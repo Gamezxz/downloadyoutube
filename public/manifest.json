@@ -1,0 +1,23 @@
+{
+    "name": "YTMP3 - YouTube to MP3 Converter",
+    "short_name": "YTMP3",
+    "description": "แปลงและดาวน์โหลดวิดีโอ YouTube เป็นไฟล์ MP3 คุณภาพสูง 320kbps",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0d0d12",
+    "theme_color": "#8b5cf6",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "favicon.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "favicon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ]
+}
