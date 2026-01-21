@@ -6,7 +6,7 @@ const { spawn, execSync } = require('child_process');
 const crypto = require('crypto');
 
 const app = express();
-const PORT = 3000;
+const PORT = 13001;
 
 app.use(cors());
 app.use(express.json());
@@ -17,7 +17,7 @@ app.use(express.static('public'));
 // ========================================
 
 // Path to ffmpeg from node_modules
-const FFMPEG_PATH = path.join(__dirname, 'node_modules', 'ffmpeg-static', 'ffmpeg.exe');
+const FFMPEG_PATH = require('ffmpeg-static');
 
 // Downloads directory
 const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
@@ -38,7 +38,8 @@ function isValidYouTubeUrl(url) {
         /^(https?:\/\/)?(www\.)?(youtu\.be\/)[\w-]+/,
         /^(https?:\/\/)?(www\.)?(youtube\.com\/embed\/)[\w-]+/,
         /^(https?:\/\/)?(m\.)?(youtube\.com\/watch\?v=)[\w-]+/,
-        /^(https?:\/\/)?(music\.)?(youtube\.com\/watch\?v=)[\w-]+/
+        /^(https?:\/\/)?(music\.)?(youtube\.com\/watch\?v=)[\w-]+/,
+        /^(https?:\/\/)?(www\.)?(youtube\.com\/shorts\/)[\w-]+/
     ];
     return patterns.some(pattern => pattern.test(url));
 }

@@ -853,6 +853,43 @@ body {
     opacity: 0.7;
 }
 
+.footer-links {
+    margin-bottom: var(--space-lg);
+    display: flex;
+    justify-content: center;
+}
+
+.github-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-lg);
+    background: hsla(0, 0%, 100%, 0.05);
+    border: 1px solid hsla(0, 0%, 100%, 0.1);
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: var(--transition-normal);
+}
+
+.github-link:hover {
+    background: hsla(0, 0%, 100%, 0.1);
+    border-color: var(--primary);
+    color: var(--text-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px hsla(0, 0%, 0%, 0.2);
+}
+
+.github-link svg {
+    opacity: 0.8;
+    transition: var(--transition-normal);
+}
+
+.github-link:hover svg {
+    opacity: 1;
+    transform: rotate(360deg);
+}
+
 /* ========================================
    Download Progress
    ======================================== */
