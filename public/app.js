@@ -53,14 +53,14 @@ document.addEventListener('click', (e) => {
     // Update convert button text
     const btnText = convertBtn.querySelector('.btn-text');
     if (btnText) {
-        btnText.textContent = `แปลงเป็น ${selectedFormat.toUpperCase()}`;
+        btnText.textContent = `Convert to ${selectedFormat.toUpperCase()}`;
     }
 
     // Also update download button text if it's visible
     const downloadText = downloadBtn.querySelector('.download-text');
     if (downloadText) {
         const qualityText = selectedFormat === 'mp3' ? '320kbps' : (selectedQuality === 'best' ? 'Best Quality' : `${selectedQuality}p`);
-        downloadText.textContent = `ดาวน์โหลด ${selectedFormat.toUpperCase()} (${qualityText})`;
+        downloadText.textContent = `Download ${selectedFormat.toUpperCase()} (${qualityText})`;
     }
 });
 
@@ -80,7 +80,7 @@ document.addEventListener('click', (e) => {
     const downloadText = downloadBtn.querySelector('.download-text');
     if (downloadText) {
         const qualityText = selectedQuality === 'best' ? 'Best Quality' : `${selectedQuality}p`;
-        downloadText.textContent = `ดาวน์โหลด MP4 (${qualityText})`;
+        downloadText.textContent = `Download MP4 (${qualityText})`;
     }
 });
 
@@ -155,7 +155,7 @@ async function handleConvert() {
         displayResult(data);
     } catch (error) {
         console.error('Error:', error);
-        showError(error.message || 'ไม่สามารถโหลดข้อมูลวิดีโอได้ กรุณาลองใหม่');
+        showError(error.message || 'Failed to load video information. Please try again.');
     }
 }
 
@@ -179,7 +179,7 @@ function handleDownload() {
     // Reset progress UI
     progressBar.style.width = '0%';
     progressPercent.textContent = '0%';
-    progressStatusText.textContent = 'กำลังเตรียมการ...';
+    progressStatusText.textContent = 'Preparing...';
     phaseDownload.classList.remove('active', 'completed');
     phaseConvert.classList.remove('active', 'completed');
     phaseComplete.classList.remove('active', 'completed');
@@ -224,7 +224,7 @@ function handleDownload() {
 
         progressBar.style.width = '100%';
         progressPercent.textContent = '100%';
-        progressStatusText.textContent = 'ดาวน์โหลดสำเร็จ! กำลังบันทึกไฟล์...';
+        progressStatusText.textContent = 'Download complete! Saving file...';
 
         // Trigger file download
         const link = document.createElement('a');
@@ -367,7 +367,7 @@ function displayResult(data) {
             if (selectedQuality === 'best') qualityText = '4K/8K Quality';
             else qualityText = `${selectedQuality}p`;
         }
-        downloadText.textContent = `ดาวน์โหลด ${selectedFormat.toUpperCase()} (${qualityText})`;
+        downloadText.textContent = `Download ${selectedFormat.toUpperCase()} (${qualityText})`;
     }
 
     showResult();
@@ -383,7 +383,7 @@ function resetToInput() {
     // Reset convert button text to default
     const btnText = convertBtn.querySelector('.btn-text');
     if (btnText) {
-        btnText.textContent = 'แปลงเป็น MP3';
+        btnText.textContent = 'Convert to MP3';
     }
 
     // Reset format selection to MP3
@@ -436,6 +436,78 @@ urlInput.addEventListener('paste', (e) => {
         }
     }, 100);
 });
+
+// ========================================
+// Donation - QR Code Generation
+// ========================================
+
+const qrCodeContainer = document.getElementById('qrCode');
+const walletAddress = '0x947Fc02E2CaF6B5a2633b40471949A09010173C0';
+
+if (qrCodeContainer) {
+    // Use QR Server API instead of library
+    const qrImg = document.createElement('img');
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(walletAddress)}`;
+    qrImg.alt = 'Wallet QR Code';
+    qrImg.width = 150;
+    qrImg.height = 150;
+    qrImg.style.display = 'block';
+    qrImg.style.borderRadius = '8px';
+    qrImg.onerror = function () {
+        qrCodeContainer.innerHTML = '<p style="color: #888; font-size: 12px; padding: 20px;">QR Code ไม่พร้อมใช้งาน</p>';
+    };
+    qrCodeContainer.appendChild(qrImg);
+}
+
+// ========================================
+// Donation - Copy Address
+// ========================================
+
+const copyAddressBtn = document.getElementById('copyAddressBtn');
+const donationAddress = document.getElementById('donationAddress');
+const copySuccess = document.getElementById('copySuccess');
+
+if (copyAddressBtn && donationAddress) {
+    copyAddressBtn.addEventListener('click', async () => {
+        const address = donationAddress.textContent;
+
+        try {
+            await navigator.clipboard.writeText(address);
+
+            // Show success message
+            copySuccess.classList.remove('hidden');
+
+            // Update button text
+            const copyText = copyAddressBtn.querySelector('.copy-text');
+            if (copyText) {
+                copyText.textContent = 'Copied!';
+            }
+
+            // Add animation feedback
+            copyAddressBtn.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                copyAddressBtn.style.transform = '';
+            }, 150);
+
+            // Reset after 3 seconds
+            setTimeout(() => {
+                copySuccess.classList.add('hidden');
+                if (copyText) {
+                    copyText.textContent = 'Copy';
+                }
+            }, 3000);
+        } catch (err) {
+            console.error('Failed to copy address:', err);
+
+            // Fallback: select the text
+            const range = document.createRange();
+            range.selectNodeContents(donationAddress);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+    });
+}
 
 // ========================================
 // Register Service Worker for PWA
