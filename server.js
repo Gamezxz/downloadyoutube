@@ -111,12 +111,25 @@ app.get('/api/info', async (req, res) => {
 
         const info = JSON.parse(output);
 
+        // Extract available heights
+        const heights = new Set();
+        if (info.formats) {
+            info.formats.forEach(f => {
+                if (f.vcodec !== 'none' && f.height) {
+                    heights.add(f.height);
+                }
+            });
+        }
+        const availableQualities = Array.from(heights).sort((a, b) => b - a);
+
         res.json({
             title: info.title,
             author: info.uploader || info.channel,
             thumbnail: info.thumbnail,
             duration: formatDuration(info.duration),
-            viewCount: info.view_count ? info.view_count.toLocaleString() : '0'
+            viewCount: info.view_count ? info.view_count.toLocaleString() : '0',
+            availableQualities: availableQualities,
+            maxHeight: info.height
         });
 
     } catch (error) {
@@ -192,7 +205,7 @@ app.get('/api/download', async (req, res) => {
 
 // Download with progress tracking (SSE)
 app.get('/api/download-progress', async (req, res) => {
-    const { url } = req.query;
+    const { url, format = 'mp3', quality = '1080' } = req.query;
 
     if (!url) {
         return res.status(400).json({ error: 'URL is required' });
@@ -227,8 +240,11 @@ app.get('/api/download-progress', async (req, res) => {
         const info = JSON.parse(infoOutput);
         const safeTitle = info.title.replace(/[<>:"/\\|?*]/g, '').trim();
         const sessionId = crypto.randomBytes(16).toString('hex');
-        const fileName = `${safeTitle}.mp3`;
-        const outputPath = path.join(DOWNLOADS_DIR, `${sessionId}.mp3`);
+
+        const isMp4 = format === 'mp4';
+        const ext = isMp4 ? 'mp4' : 'mp3';
+        const fileName = `${safeTitle}.${ext}`;
+        const outputPath = path.join(DOWNLOADS_DIR, `${sessionId}.${ext}`);
 
         sendEvent('info', {
             title: info.title,
@@ -236,19 +252,47 @@ app.get('/api/download-progress', async (req, res) => {
             duration: info.duration
         });
 
-        sendEvent('status', { message: 'กำลังดาวน์โหลดเสียง...', phase: 'download', progress: 0 });
+        const downloadMsg = isMp4 ? 'กำลังดาวน์โหลดวิดีโอ...' : 'กำลังดาวน์โหลดเสียง...';
+        sendEvent('status', { message: downloadMsg, phase: 'download', progress: 0 });
+
+        // Configure yt-dlp arguments based on format
+        let ytdlpArgs = [];
+        if (isMp4) {
+            let formatSelection = '';
+            if (quality === 'best') {
+                formatSelection = 'bestvideo+bestaudio/best';
+            } else if (quality === '1080') {
+                formatSelection = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
+            } else if (quality === '720') {
+                formatSelection = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best';
+            } else {
+                formatSelection = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
+            }
+
+            ytdlpArgs = [
+                '-f', formatSelection,
+                '--merge-output-format', 'mp4',
+                '--ffmpeg-location', `"${FFMPEG_PATH}"`,
+                '--newline',
+                '--progress',
+                '-o', `"${outputPath}"`,
+                url
+            ];
+        } else {
+            ytdlpArgs = [
+                '-x',
+                '--audio-format', 'mp3',
+                '--audio-quality', '320K',
+                '--ffmpeg-location', `"${FFMPEG_PATH}"`,
+                '--newline',
+                '--progress',
+                '-o', `"${outputPath.replace('.mp3', '.%(ext)s')}"`,
+                url
+            ];
+        }
 
         // Download with progress tracking
-        const ytdlp = spawn('yt-dlp', [
-            '-x',
-            '--audio-format', 'mp3',
-            '--audio-quality', '320K',
-            '--ffmpeg-location', `"${FFMPEG_PATH}"`,
-            '--newline',
-            '--progress',
-            '-o', `"${outputPath.replace('.mp3', '.%(ext)s')}"`,
-            url
-        ], { shell: true });
+        const ytdlp = spawn('yt-dlp', ytdlpArgs, { shell: true });
 
         let lastProgress = 0;
 
@@ -262,8 +306,9 @@ app.get('/api/download-progress', async (req, res) => {
                 const progress = parseFloat(downloadMatch[1]);
                 if (progress > lastProgress) {
                     lastProgress = progress;
-                    // Scale download to 0-70%
-                    const scaledProgress = Math.min(progress * 0.7, 70);
+                    // Scale download to 0-80% for MP4 (merging takes more time) or 0-70% for MP3
+                    const maxScale = isMp4 ? 80 : 70;
+                    const scaledProgress = Math.min(progress * (maxScale / 100), maxScale);
                     sendEvent('progress', {
                         percent: Math.round(scaledProgress),
                         phase: 'download',
@@ -272,12 +317,14 @@ app.get('/api/download-progress', async (req, res) => {
                 }
             }
 
-            // Detect conversion phase
-            if (output.includes('[ExtractAudio]') || output.includes('Converting') || output.includes('Destination:')) {
+            // Detect conversion/merging phase
+            if (output.includes('[ExtractAudio]') || output.includes('Converting') || output.includes('Destination:') || output.includes('[VideoConvertor]') || output.includes('[Merger]')) {
+                const statusMsg = isMp4 ? 'กำลังรวมไฟล์วิดีโอและเสียง...' : 'กำลังแปลงไฟล์เป็น MP3...';
+                const percent = isMp4 ? 85 : 75;
                 sendEvent('progress', {
-                    percent: 75,
+                    percent: percent,
                     phase: 'convert',
-                    message: 'กำลังแปลงไฟล์เป็น MP3...'
+                    message: statusMsg
                 });
             }
         });
@@ -286,13 +333,14 @@ app.get('/api/download-progress', async (req, res) => {
             const output = data.toString();
             console.log('yt-dlp stderr:', output);
 
-            // Also check stderr for progress (some versions output there)
+            // Also check stderr for progress
             const downloadMatch = output.match(/(\d+\.?\d*)%/);
             if (downloadMatch) {
                 const progress = parseFloat(downloadMatch[1]);
                 if (progress > lastProgress) {
                     lastProgress = progress;
-                    const scaledProgress = Math.min(progress * 0.7, 70);
+                    const maxScale = isMp4 ? 80 : 70;
+                    const scaledProgress = Math.min(progress * (maxScale / 100), maxScale);
                     sendEvent('progress', {
                         percent: Math.round(scaledProgress),
                         phase: 'download',

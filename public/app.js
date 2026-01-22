@@ -19,12 +19,70 @@ const viewCount = document.getElementById('viewCount');
 const downloadBtn = document.getElementById('downloadBtn');
 const newDownloadBtn = document.getElementById('newDownloadBtn');
 
-// Current video URL
+// Current video URL and format
 let currentVideoUrl = '';
+let selectedFormat = 'mp3';
+let selectedQuality = '1080';
 
 // ========================================
 // Event Listeners
 // ========================================
+
+// Format selection using event delegation for better reliability
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.format-btn');
+    if (!btn) return;
+
+    // Update selection
+    selectedFormat = btn.dataset.format;
+
+    // Update UI
+    document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Show/Hide quality selection logic will be handled in displayResult after info is fetched
+    if (selectedFormat === 'mp4') {
+        // If we already have video info, show it, otherwise keep hidden until fetch
+        if (currentVideoUrl) {
+            document.getElementById('qualitySelection').classList.remove('hidden');
+        }
+    } else {
+        document.getElementById('qualitySelection').classList.add('hidden');
+    }
+
+    // Update convert button text
+    const btnText = convertBtn.querySelector('.btn-text');
+    if (btnText) {
+        btnText.textContent = `แปลงเป็น ${selectedFormat.toUpperCase()}`;
+    }
+
+    // Also update download button text if it's visible
+    const downloadText = downloadBtn.querySelector('.download-text');
+    if (downloadText) {
+        const qualityText = selectedFormat === 'mp3' ? '320kbps' : (selectedQuality === 'best' ? 'Best Quality' : `${selectedQuality}p`);
+        downloadText.textContent = `ดาวน์โหลด ${selectedFormat.toUpperCase()} (${qualityText})`;
+    }
+});
+
+// Quality selection
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.quality-btn');
+    if (!btn) return;
+
+    // Update selection
+    selectedQuality = btn.dataset.quality;
+
+    // Update UI
+    document.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Update download button text if it's visible
+    const downloadText = downloadBtn.querySelector('.download-text');
+    if (downloadText) {
+        const qualityText = selectedQuality === 'best' ? 'Best Quality' : `${selectedQuality}p`;
+        downloadText.textContent = `ดาวน์โหลด MP4 (${qualityText})`;
+    }
+});
 
 // Paste button click
 pasteBtn.addEventListener('click', async () => {
@@ -127,7 +185,7 @@ function handleDownload() {
     phaseComplete.classList.remove('active', 'completed');
 
     // Create SSE connection
-    const eventSource = new EventSource(`/api/download-progress?url=${encodeURIComponent(currentVideoUrl)}`);
+    const eventSource = new EventSource(`/api/download-progress?url=${encodeURIComponent(currentVideoUrl)}&format=${selectedFormat}&quality=${selectedQuality}`);
 
     eventSource.addEventListener('status', (e) => {
         const data = JSON.parse(e.data);
@@ -257,6 +315,61 @@ function displayResult(data) {
     duration.textContent = data.duration;
     viewCount.textContent = data.viewCount;
 
+    // Handle quality selection visibility and availability
+    const qualitySelection = document.getElementById('qualitySelection');
+    if (selectedFormat === 'mp4') {
+        const qualities = data.availableQualities || [];
+        const btn720 = document.querySelector('[data-quality="720"]');
+        const btn1080 = document.querySelector('[data-quality="1080"]');
+        const btnBest = document.querySelector('[data-quality="best"]');
+
+        const has720 = qualities.some(q => q >= 720);
+        const has1080 = qualities.some(q => q >= 1080);
+        const hasHigher = qualities.some(q => q > 1080);
+
+        // Update quality button visibility
+        if (btn720) {
+            btn720.classList.toggle('hidden', !has720 && (has1080 || hasHigher));
+            if (!has720 && !has1080 && !hasHigher) {
+                btn720.classList.remove('hidden');
+                btn720.textContent = 'Standard Quality';
+            } else {
+                btn720.textContent = '720p';
+            }
+        }
+        if (btn1080) btn1080.classList.toggle('hidden', !has1080);
+        if (btnBest) btnBest.classList.toggle('hidden', !hasHigher);
+
+        // Auto-select best available if current is not available
+        if (selectedQuality === 'best' && !hasHigher) {
+            selectedQuality = has1080 ? '1080' : (has720 ? '720' : 'best');
+        } else if (selectedQuality === '1080' && !has1080) {
+            selectedQuality = has720 ? '720' : 'best';
+        }
+
+        // Update active states
+        document.querySelectorAll('.quality-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.quality === selectedQuality);
+        });
+
+        qualitySelection.classList.remove('hidden');
+    } else {
+        qualitySelection.classList.add('hidden');
+    }
+
+    // Update download button text
+    const downloadText = downloadBtn.querySelector('.download-text');
+    if (downloadText) {
+        let qualityText = '';
+        if (selectedFormat === 'mp3') {
+            qualityText = '320kbps';
+        } else {
+            if (selectedQuality === 'best') qualityText = '4K/8K Quality';
+            else qualityText = `${selectedQuality}p`;
+        }
+        downloadText.textContent = `ดาวน์โหลด ${selectedFormat.toUpperCase()} (${qualityText})`;
+    }
+
     showResult();
 }
 
@@ -266,6 +379,23 @@ function resetToInput() {
     urlInput.value = '';
     urlInput.focus();
     currentVideoUrl = '';
+
+    // Reset convert button text to default
+    const btnText = convertBtn.querySelector('.btn-text');
+    if (btnText) {
+        btnText.textContent = 'แปลงเป็น MP3';
+    }
+
+    // Reset format selection to MP3
+    selectedFormat = 'mp3';
+    selectedQuality = '1080';
+    document.getElementById('qualitySelection').classList.add('hidden');
+    document.querySelectorAll('.format-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.format === 'mp3');
+    });
+    document.querySelectorAll('.quality-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.quality === '1080');
+    });
 }
 
 // ========================================
